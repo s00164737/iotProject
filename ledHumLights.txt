@@ -1,0 +1,258 @@
+// Demo code for Grove - Temperature Sensor V1.1/1.2
+// Loovee @ 2015-8-26
+
+//24/02/24 DHT SENSOR
+// Example testing sketch for various DHT humidity/temperature sensors
+// Written by ladyada, public domain
+
+// REQUIRES the following Arduino libraries:
+// - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
+// - Adafruit Unified Sensor Lib: https://github.com/adafruit/Adafruit_Sensor
+
+//Edit 23/02/24 Hubert Jabloniec S0016473
+//Control LED depending on temperature range
+
+//Edit 24/02/24 Hubert Jabloniec S00164737
+//Tidying of previous code and forming methods for seperate parts
+//Add DHT Sensor to read Humidity and control lights
+
+
+#include <math.h>
+#include "DHT.h"
+
+#define DHTPIN 2     // Digital pin connected to the DHT sensor
+// Feather HUZZAH ESP8266 note: use pins 3, 4, 5, 12, 13 or 14 --
+// Pin 15 can work but DHT must be disconnected during program upload.
+
+// Uncomment whatever type you're using!
+#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+
+// Connect pin 1 (on the left) of the sensor to +5V
+// NOTE: If using a board with 3.3V logic like an Arduino Due connect pin 1
+// to 3.3V instead of 5V!
+// Connect pin 2 of the sensor to whatever your DHTPIN is
+// Connect pin 4 (on the right) of the sensor to GROUND
+// Connect a 10K resistor from pin 2 (data) to pin 1 (power) of the sensor
+
+// Initialize DHT sensor.
+// Note that older versions of this library took an optional third parameter to
+// tweak the timings for faster processors.  This parameter is no longer needed
+// as the current DHT reading algorithm adjusts itself to work on faster procs.
+DHT dht(DHTPIN, DHTTYPE);
+
+
+//Temperature sensor values
+const int B = 4275;               // B value of the thermistor
+const int R0 = 100000;            // R0 = 100k
+const int pinTempSensor = A0;     // Grove - Temperature Sensor connect to A0
+
+//LED FOR TEMPERATURE
+const int heat = 7;
+
+//LED FOR LIGHT
+const int light = 4;
+
+//LED FOR HUMIDIFIER
+const int humidifier = 8;
+
+//PIN FOR SWITCH
+int SWITCH = 12;
+
+#if defined(ARDUINO_ARCH_AVR)
+#define debug  Serial
+#elif defined(ARDUINO_ARCH_SAMD) ||  defined(ARDUINO_ARCH_SAM)
+#define debug  SerialUSB
+#else
+#define debug  Serial
+#endif
+
+void setup()
+{
+  // set pin #7 as OUTPUT pin (Heating)
+  pinMode(heat, OUTPUT); 
+
+  // set pin #4 as OUTPUT pin (Light)
+  pinMode(light, OUTPUT); 
+
+  //set pin #8 as Output pin (Humidifier)
+  pinMode(humidifier, OUTPUT);
+
+  //Initialize data exchange with serial port at 9600 bits per second
+  Serial.begin(9600);
+
+  //Initialize DHT sensor
+  dht.begin();
+
+  //Initialize the Switch at #12 pin
+  pinMode(SWITCH, INPUT_PULLUP);
+
+}
+
+void loop()
+{
+  //Predefined values, later will be read from app
+  float minTemperature = 20.0;
+  float maxTemperature = 30.0;
+
+  //Control Heating based on min, max and current temp
+  Heating(minTemperature, maxTemperature, Temperature());
+
+  //DHT
+  //DHT_Sensor();
+
+  //Predefined values, later will be read from app
+  float minHumidity = 50.0;
+  float maxHumidity = 60.0;
+
+  //Control Humidifier based on min,max, and current humidity
+  Humidifier(minHumidity, maxHumidity, DHT_Humidity());
+
+  //Light Control
+  LightControl(Switch_Output());
+
+//Stop CPU for 2s
+  delay(2000);
+}
+
+//DHT Humidity -- Custom
+float DHT_Humidity()
+{
+  float h = dht.readHumidity();
+
+  Serial.print(F("Humidity: "));
+  Serial.print(h);
+
+  return h;
+}
+
+//DHT SENSOR
+void DHT_Sensor()
+{
+  // Reading temperature or humidity takes about 250 milliseconds!
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float h = dht.readHumidity();
+  // Read temperature as Celsius (the default)
+  float t = dht.readTemperature();
+  // Read temperature as Fahrenheit (isFahrenheit = true)
+  float f = dht.readTemperature(true);
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+    return;
+  }
+
+  // Compute heat index in Fahrenheit (the default)
+  float hif = dht.computeHeatIndex(f, h);
+  // Compute heat index in Celsius (isFahreheit = false)
+  float hic = dht.computeHeatIndex(t, h, false);
+
+  Serial.print(F("Humidity: "));
+  Serial.print(h);
+  Serial.print(F("%  Temperature: "));
+  Serial.print(t);
+  Serial.print(F("°C "));
+  Serial.print(f);
+  Serial.print(F("°F  Heat index: "));
+  Serial.print(hic);
+  Serial.print(F("°C "));
+  Serial.print(hif);
+  Serial.println(F("°F"));
+}
+
+//Read and return converted temperature from sensor
+float Temperature()
+{
+    int a = analogRead(pinTempSensor);
+
+    float R = 1023.0/a-1.0;
+    R = R0*R;
+
+    float temp = 1.0/(log(R/R0)/B+1/298.15)-273.15; // convert to temperature via datasheet
+
+    Serial.print("temperature = ");
+    Serial.println(temp);
+
+    return temp;
+}
+
+//Light On/Off
+void turnOnLight()
+{
+  digitalWrite(light, HIGH);
+}
+
+void turnOffLight()
+{
+  digitalWrite(light, LOW);
+}
+
+//Heat On/Off
+void turnHeatOn()
+{
+  digitalWrite(heat, HIGH);
+}
+
+void turnHeatOff()
+{
+  digitalWrite(heat, LOW);
+}
+
+//Humidifier On/Off
+void turnHumidifierOn()
+{
+  digitalWrite(humidifier, HIGH);
+}
+
+void turnHumidifierOff()
+{
+  digitalWrite(humidifier, LOW);
+}
+
+//Control heat based on temperature
+void Heating(float minTemp, float maxTemp, float currentTemp)
+{
+  if(currentTemp < minTemp)
+  {
+    turnHeatOn();
+  }
+  if(currentTemp >= maxTemp)
+  {
+    turnHeatOff();
+  }
+}
+
+//Control humiditier based on humidity
+void Humidifier(float minHum, float maxHum, float currentHum)
+{
+  if(currentHum < minHum)
+  {
+    turnHumidifierOn();
+  }
+  if(currentHum >= maxHum)
+  {
+    turnHumidifierOff();
+  }
+}
+
+//Switch logic
+bool Switch_Output()
+{
+  // Read the state of the button
+  bool isOn = digitalRead(SWITCH);
+  return isOn;
+}
+
+//Light Control
+void LightControl(bool isOn)
+{
+  if(isOn)
+  {
+    turnOnLight();
+  }
+  else
+  {
+    turnOffLight();
+  }
+
+}
