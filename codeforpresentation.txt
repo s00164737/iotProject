@@ -30,39 +30,47 @@ void setup() {
 }
 
 void loop() {
-  //Predefined values, later will be read from app
-  float minTemperature = 23.0;
-  float maxTemperature = 25.0;
-
-  //Control Heating based on min, max and current temp
-  Heating(minTemperature, maxTemperature, Temperature());
-
-  //Predefined values, later will be read from app
-  float minHumidity = 50.0;
-  float maxHumidity = 60.0;
-
+  //READ POTENTOMETERS FOR PRESENTATION
+  
    // Potentometer Max 1023 --- HUMIDIFIER
   int knobValue = analogRead(A1);
 
    // Potentometer Max 1023 ---LIGHTS
   int knobValue2 = analogRead(A2);
 
-   // print out the value you read:
+  //TESTING PURPOSES
+     // print out the value you read:
+  Serial.print("Humidity: ");
   Serial.println(knobValue);
      // print out the value you read:
-  Serial.println(knobValue2);
+     if(knobValue2 <= 500)
+     {
+      Serial.println("light on");
+     }
+     else
+     {
+      Serial.println("light off");
+     }
+  
+  
+  //Predefined values, later will be read from app
+  float minTemperature = 21.0;
+  float maxTemperature = 22.5;
 
-  //Control Humidifier
-  if(knobValue <= 300)
-  {
-    turnHumidifierOn();
-  }
-  else if(knobValue >= 600)
-  {
-    turnHumidifierOff();
-  }
+  //Predefined values for pretend humidifier
+  float minHumidity = 300.0;
+  float maxHumidity = 600.0;
 
-    //Control Lights
+   //Predefined values for pretend  lights
+  float lightPoint = 500.0;
+
+  //Control Heating based on min, max and current temp
+  Heating(minTemperature, maxTemperature, Temperature());
+
+  //Control Humidifier -- Temporary values
+  Humidifier(minHumidity, maxHumidity, knobValue);
+
+  //Control Lights using potentometer -- temporary values
   if(knobValue2 <= 500)
   {
     turnOnLight();
