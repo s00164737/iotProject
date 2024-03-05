@@ -1,0 +1,166 @@
+#include <math.h>
+
+//Temperature sensor values
+const int B = 4275;               // B value of the thermistor
+const int R0 = 100000;            // R0 = 100k
+const int pinTempSensor = A0;     // Grove - Temperature Sensor connect to A0
+
+//LED FOR TEMPERATURE
+const int heat = 7;
+
+//LED FOR LIGHT
+const int light = 4;
+
+//LED FOR HUMIDIFIER
+const int humidifier = 8;
+
+void setup() {
+  // set pin #7 as OUTPUT pin (Heating)
+  pinMode(heat, OUTPUT); 
+
+  // set pin #4 as OUTPUT pin (Light)
+  pinMode(light, OUTPUT); 
+
+  //set pin #8 as Output pin (Humidifier)
+  pinMode(humidifier, OUTPUT);
+
+  //Initialize data exchange with serial port at 9600 bits per second
+  Serial.begin(9600);
+
+}
+
+void loop() {
+  //Predefined values, later will be read from app
+  float minTemperature = 23.0;
+  float maxTemperature = 25.0;
+
+  //Control Heating based on min, max and current temp
+  Heating(minTemperature, maxTemperature, Temperature());
+
+  //Predefined values, later will be read from app
+  float minHumidity = 50.0;
+  float maxHumidity = 60.0;
+
+   // Potentometer Max 1023 --- HUMIDIFIER
+  int knobValue = analogRead(A1);
+
+   // Potentometer Max 1023 ---LIGHTS
+  int knobValue2 = analogRead(A2);
+
+   // print out the value you read:
+  Serial.println(knobValue);
+     // print out the value you read:
+  Serial.println(knobValue2);
+
+  //Control Humidifier
+  if(knobValue <= 300)
+  {
+    turnHumidifierOn();
+  }
+  else if(knobValue >= 600)
+  {
+    turnHumidifierOff();
+  }
+
+    //Control Lights
+  if(knobValue2 <= 500)
+  {
+    turnOnLight();
+  }
+  else
+  {
+    turnOffLight();
+  }
+
+//Stop CPU for 2s
+  delay(2000);
+}
+
+//Read and return converted temperature from sensor
+float Temperature()
+{
+    int a = analogRead(pinTempSensor);
+
+    float R = 1023.0/a-1.0;
+    R = R0*R;
+
+    float temp = 1.0/(log(R/R0)/B+1/298.15)-273.15; // convert to temperature via datasheet
+
+    Serial.print("temperature = ");
+    Serial.println(temp);
+
+    return temp;
+}
+
+//Light On/Off
+void turnOnLight()
+{
+  digitalWrite(light, HIGH);
+}
+
+void turnOffLight()
+{
+  digitalWrite(light, LOW);
+}
+
+//Heat On/Off
+void turnHeatOn()
+{
+  digitalWrite(heat, HIGH);
+}
+
+void turnHeatOff()
+{
+  digitalWrite(heat, LOW);
+}
+
+//Humidifier On/Off
+void turnHumidifierOn()
+{
+  digitalWrite(humidifier, HIGH);
+}
+
+void turnHumidifierOff()
+{
+  digitalWrite(humidifier, LOW);
+}
+
+//Control heat based on temperature
+void Heating(float minTemp, float maxTemp, float currentTemp)
+{
+  if(currentTemp < minTemp)
+  {
+    turnHeatOn();
+  }
+  if(currentTemp >= maxTemp)
+  {
+    turnHeatOff();
+  }
+}
+
+//Control humiditier based on humidity
+void Humidifier(float minHum, float maxHum, float currentHum)
+{
+  if(currentHum < minHum)
+  {
+    turnHumidifierOn();
+  }
+  if(currentHum >= maxHum)
+  {
+    turnHumidifierOff();
+  }
+}
+
+//Light Control
+void LightControl(bool isOn)
+{
+  if(isOn)
+  {
+    turnOnLight();
+  }
+  else
+  {
+    turnOffLight();
+  }
+
+}
