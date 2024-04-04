@@ -1,0 +1,432 @@
+//BLYNK
+#define BLYNK_PRINT Serial
+#define BLYNK_TEMPLATE_ID "TMPL4moEKt4d3"
+#define BLYNK_TEMPLATE_NAME "arduino"
+#define BLYNK_AUTH_TOKEN "1_NIRjFDsowAqwi48Yb53xh0JMb7vhUd"
+
+#include <BlynkSimpleYun.h>
+#include <Bridge.h>
+#include <math.h>
+#include <Process.h>
+
+//TIME
+
+
+//Temperature sensor values
+const int B = 4275;               // B value of the thermistor
+const int R0 = 100000;            // R0 = 100k
+const int pinTempSensor = A0;     // Grove - Temperature Sensor connect to A0
+
+#if defined(ARDUINO_ARCH_AVR)
+#define debug  Serial
+#elif defined(ARDUINO_ARCH_SAMD) ||  defined(ARDUINO_ARCH_SAM)
+#define debug  SerialUSB
+#else
+#define debug  Serial
+#endif
+
+//LED FOR TEMPERATURE
+const int heat = 7;
+
+//LED FOR LIGHT
+const int light = 4;
+
+//LED FOR LIGHT CONTROLLED BY TIME
+const int lightTime = 5;
+
+//LED FOR HUMIDIFIER
+const int humidifier = 8;
+
+//BUTTON FOR LIGHTS
+
+const int buttonPin = 3;
+int buttonState = 0;
+bool isOn = false;
+
+
+//Temporary
+double minimumTemp = 1;
+double maximumTemp = 2;
+int minimumHumidity = 1;
+int maximumHumidity = 2;
+float tc;
+int knobValue;
+uint32_t lightOn;
+uint32_t lightOff;
+uint32_t timeNow;
+uint32_t hours;
+uint32_t minutes;
+
+//Timer
+// This function creates the timer object. It's part of Blynk library 
+BlynkTimer timer; 
+
+void myTimer() 
+{
+  //BLYNK LOGIC
+  //Blynk.virtualWrite(V1, "cocoloco");
+  Blynk.virtualWrite(V0, tc);
+  Blynk.virtualWrite(V2, knobValue);
+  //Blynk.syncVirtual(V1); 
+
+  //lights logic
+  if(timeNow >= lightOn && timeNow < lightOff)
+  {
+    digitalWrite(lightTime, HIGH);
+  }
+  else
+  {
+    digitalWrite(lightTime, LOW);
+  }
+
+    Blynk.sendInternal("rtc", "sync"); //request current local time for device
+
+  char tz[] = "Europe/Dublin";
+  uint32_t t1 = timeNow;
+  uint32_t t2 = timeNow+3600;
+    Blynk.virtualWrite(V1, t1, t2, tz);
+}
+
+
+
+void setup() {
+  // set pin #7 as OUTPUT pin (Heating)
+  pinMode(heat, OUTPUT); 
+
+  // set pin #4 as OUTPUT pin (Light)
+  pinMode(light, OUTPUT); 
+
+  //set pin #8 as Output pin (Humidifier)
+  pinMode(humidifier, OUTPUT);
+
+//set pin #3 as input pin (button for lights)
+  pinMode(buttonPin, INPUT);
+
+  //WIFI
+  SerialUSB.begin(9600);  // initialize serial communication
+  while (!SerialUSB);     // do nothing until the serial monitor is opened
+
+  SerialUSB.println("Starting bridge...\n");
+  pinMode(13, OUTPUT);
+  digitalWrite(13, LOW);
+  Bridge.begin();  // make contact with the linux processor
+  digitalWrite(13, HIGH);  // Led on pin 13 turns on when the bridge is ready
+
+  delay(2000);  // wait 2 seconds
+
+  //BLYNK
+  //Blynk.begin(BLYNK_AUTH_TOKEN, "wifi-ssid", "wifi-pass");
+    Blynk.begin(BLYNK_AUTH_TOKEN);
+    //server
+  //Blynk.begin(BLYNK_AUTH_TOKEN, "blynk.cloud", 80);
+  //Blynk.begin(BLYNK_AUTH_TOKEN, IPAddress(192,168,1,100), 8080);
+
+  Blynk.syncVirtual(V0, V1, V2, V3, V4, V5, V6, V7, V8, V9);
+  timer.setInterval(1000L, myTimer); 
+
+}
+
+
+//BLYNK METHODS
+//lights
+BLYNK_WRITE(3) 
+{
+    if (param.asDouble()) {
+        //HIGH
+        LightControl(true);
+    } else {
+       //LOW
+       LightControl(false);
+    }
+}
+
+//mintemp
+BLYNK_WRITE(4) 
+{
+  minimumTemp = param[0].asDouble();
+}
+
+//maxtemp
+BLYNK_WRITE(5) 
+{
+  maximumTemp = param[0].asDouble();
+}
+
+//minHumidity
+BLYNK_WRITE(6) 
+{
+  minimumHumidity = param[0].asInt();
+}
+
+//maxHumidity
+BLYNK_WRITE(7) 
+{
+  maximumHumidity = param[0].asInt();
+}
+
+//lightOn
+BLYNK_WRITE(8) 
+{
+  lightOn = param[0].asLong();
+}
+
+//lightOff
+BLYNK_WRITE(9) 
+{
+  lightOff = param[0].asLong();
+}
+
+
+//TIME
+/*
+BLYNK_CONNECTED() {                  //When device is connected to server...
+  Blynk.sendInternal("rtc", "sync"); //request current local time for device
+}
+*/
+BLYNK_WRITE(InternalPinRTC) {   //check the value of InternalPinRTC  
+  long t = param.asLong();      //store time in t variable
+  Serial.print("Unix time: ");  
+  Serial.print(t);              //prints time in UNIX format to Serial Monitor
+  Serial.println();
+
+  timeNow = (t / 86400)+ 25569;
+  
+  
+
+timeNow = secondsSinceMidnight(t);
+
+  minutes = timeNow / 60;
+  hours = minutes / 60;
+  minutes = minutes % 60;
+  
+  Serial.println(hours);
+  Serial.println(minutes);
+  Serial.println(timeNow);
+}
+
+
+//LOOP
+
+void loop() {
+  //READ POTENTOMETERS FOR PRESENTATION
+  
+   // Potentometer Max 1023 --- HUMIDIFIER
+  knobValue = analogRead(A1);
+
+   // Potentometer Max 1023 ---LIGHTS
+  // int knobValue2 = analogRead(A2);
+
+  //Light Button
+  buttonState = digitalRead(buttonPin);
+
+  //Lights Logic
+  if(buttonState == HIGH)
+  {
+    isOn = true;
+    Serial.println("light on");
+  }
+  else
+  {
+    isOn = false;
+    Serial.println("light off");
+  }
+
+  //TESTING PURPOSES
+     // print out the value you read:
+  Serial.print("Humidity: ");
+  Serial.println(knobValue);
+
+  /*
+     // print out the value you read:
+     if(knobValue2 <= 500)
+     {
+      Serial.println("light on");
+     }
+     else
+     {
+      Serial.println("light off");
+     }
+  */
+  
+  //Predefined values, later will be read from app
+  float minTemperature = 21.0;
+  float maxTemperature = 22.5;
+
+   //Predefined values for pretend  lights
+  float lightPoint = 500.0;
+
+  //Control Heating based on min, max and current temp
+  tc = Temperature();
+  
+  Serial.print("min: ");
+  Serial.print(minimumTemp);
+  Serial.print("max: ");
+  Serial.print(maximumTemp);
+  Serial.println();
+  
+  Heating(minimumTemp, maximumTemp, tc);
+
+  //Control Humidifier based on min, max and current temp
+  Serial.println();
+Serial.println(minimumHumidity);
+Serial.println(maximumHumidity);
+Serial.println(knobValue);
+  Serial.println();
+  
+  Humidifier(minimumHumidity, maximumHumidity, knobValue);
+
+  //LIGHTS TIME
+    Serial.println();
+Serial.println(lightOn);
+Serial.println(lightOff);
+Serial.println(timeNow);
+  Serial.println();
+
+  //Lights Control
+  //LightControl(isOn);
+
+  //Lights with blynk
+  
+/*
+  //Control Lights using potentometer -- temporary values
+  if(knobValue2 <= 500)
+  {
+    turnOnLight();
+  }
+  else
+  {
+    turnOffLight();
+  }
+  */
+
+//WIFI
+  Process wifiCheck;  // initialize a new process
+
+  wifiCheck.runShellCommand("/usr/bin/pretty-wifi-info.lua");  // command you want to run
+
+  // while there's any characters coming back from the
+  // process, print them to the serial monitor:
+  while (wifiCheck.available() > 0) {
+    char c = wifiCheck.read();
+    SerialUSB.print(c);
+  }
+
+  SerialUSB.println();
+
+//Stop CPU for 1s
+  delay(1000);
+  
+  //BLYNK
+  Blynk.run();
+  // runs BlynkTimer
+  timer.run(); 
+
+
+}
+
+//Read and return converted temperature from sensor
+float Temperature()
+{
+    int a = analogRead(pinTempSensor);
+
+    float R = 1023.0/a-1.0;
+    R = R0*R;
+
+    float temp = 1.0/(log(R/R0)/B+1/298.15)-273.15; // convert to temperature via datasheet
+
+    Serial.print("temperature = ");
+    Serial.println(temp);
+    Serial.println();
+
+    return temp;
+}
+
+//Light On/Off
+void turnOnLight()
+{
+  digitalWrite(light, HIGH);
+}
+
+void turnOffLight()
+{
+  digitalWrite(light, LOW);
+}
+
+//Heat On/Off
+void turnHeatOn()
+{
+  digitalWrite(heat, HIGH);
+}
+
+void turnHeatOff()
+{
+  digitalWrite(heat, LOW);
+}
+
+//Humidifier On/Off
+void turnHumidifierOn()
+{
+  digitalWrite(humidifier, HIGH);
+}
+
+void turnHumidifierOff()
+{
+  digitalWrite(humidifier, LOW);
+}
+
+//Control heat based on temperature
+void Heating(float minTemp, float maxTemp, float currentTemp)
+{
+  if(currentTemp < minTemp)
+  {
+    turnHeatOn();
+  }
+  if(currentTemp >= maxTemp)
+  {
+    turnHeatOff();
+  }
+}
+
+//Control humiditier based on humidity
+void Humidifier(float minHum, float maxHum, float currentHum)
+{
+  if(currentHum < minHum)
+  {
+    turnHumidifierOn();
+  }
+  if(currentHum >= maxHum)
+  {
+    turnHumidifierOff();
+  }
+}
+
+//Light Control
+void LightControl(bool isOn)
+{
+  if(isOn)
+  {
+    turnOnLight();
+  }
+  else
+  {
+    turnOffLight();
+  }
+}
+
+
+//TIME
+// Function to calculate seconds elapsed since midnight
+uint32_t secondsSinceMidnight(uint32_t unixTime) {
+    // Extract hours, minutes, and seconds from the Unix timestamp
+    uint32_t hours = (unixTime-7200) / 3600 % 24;
+    Serial.println("timenow");
+    Serial.println(hours);
+    uint32_t minutes = (unixTime % 3600) / 60;
+    Serial.println(minutes);
+    uint32_t seconds = unixTime % 60;
+
+    // Calculate total seconds elapsed since midnight
+    uint32_t elapsedSeconds = hours * 3600 + minutes * 60 + seconds;
+
+    return elapsedSeconds;
+}
